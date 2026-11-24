@@ -180,15 +180,24 @@ ITEM_SECTION = {q: s for s, qs in SECTIONS.items() for q in qs}
 ITEMS = [q for qs in SECTIONS.values() for q in qs]
 SYNONYM = {"County_commitment": "admin_commitment", "district_commitment": "admin_commitment", "adeduate_carrier": "adequate_carrier",
            "adequate_Carriers": "adequate_carrier", "adequate_mOPV2": "adequate_vaccine_droppers", "adequate_bOPV2": "adequate_vaccine_droppers",
-           "adequate_bOPV": "adequate_vaccine_droppers", "adequate_nOPV2": "adequate_vaccine_droppers"}
+           "adequate_bOPV": "adequate_vaccine_droppers", "adequate_nOPV2": "adequate_vaccine_droppers",
+           # Nigeria, IPDs_PreImplementation_Checklist (form 356): the questions that are the same as the standard checklist
+           "micropln": "microplan_done", "hardReach": "address_H2R", "Schedule": "activity_plan_available", "socmobfnd": "SocMob_Funds",
+           "trainpersnl": "Training_completed", "scmobcomt": "functional_SM", "socplan": "SM_activityPlan", "implsocpln": "PlansPerSchedure",
+           "opvdist": "vaccine_dist_plan", "tranplan": "adequate_transport", "OPVVaccine": "adequate_vaccine_droppers", "PenMarkers": "adequate_Fmarker",
+           "Data_HHTally": "adequate_tallysheet", "crosBord": "Xbordermeet"}
 NEGATIVE = {"VVM_for_discard"}               # "Are there vials with VVM at discard point?": Yes = a problem
 YES, NO, NA = "Yes", "No", "NA"
-ANSWER = {"yes": YES, "oui": YES, "sim": YES, "no": NO, "non": NO, "nao": NO, "não": NO, "na": NA, "n/a": NA, "nan": ""}
-GEO_REGION = ["Region", "State"]
-GEO_DISTRICT = ["District", "district", "County"]
-GEO_FACILITY = ["facility", "Facility", "nameofhf", "Sub_District", "sub_district", "Ward", "ward", "other_facility", "Other_facility", "facility_other", "OTH_Facility"]
-VALIDATE_LEVEL = {"national": "National", "regional": "Regional", "district": "District", "health_area": "Facility", "woreda": "Facility"}
+ANSWER = {"y": YES, "n": NO, "yes": YES, "oui": YES, "sim": YES, "no": NO, "non": NO, "nao": NO, "não": NO, "na": NA, "n/a": NA, "nan": ""}
+GEO_REGION = ["Region", "State", "states"]
+GEO_DISTRICT = ["District", "district", "County", "lgas"]
+GEO_FACILITY = ["facility", "Facility", "nameofhf", "Sub_District", "sub_district", "Ward", "ward", "other_facility", "Other_facility", "facility_other", "OTH_Facility", "Wards"]
+VALIDATE_LEVEL = {"national": "National", "regional": "Regional", "district": "District", "health_area": "Facility", "woreda": "Facility",
+                  "state": "Regional", "lga": "District", "ward": "Facility"}
 LEVEL_ORDER = ["National", "Regional", "District", "Facility"]
+
+
+EXTRAS = []                                    # Nigeria-only items, one frame per form
 
 
 def designation(code):
@@ -196,7 +205,9 @@ def designation(code):
     c = str(code or "").strip().lower()
     if not c:
         return ""
-    if any(t in c for t in ("who", "unicef", "cdc", "afinet", "iqvia", "gpei", "king", "partner", "bmgf", "usaid", "rotary", "msf")):
+    if c == "government":
+        return "Government"
+    if any(t in c for t in ("who", "unicef", "cdc", "afinet", "afenet", "iqvia", "gpei", "king", "partner", "bmgf", "usaid", "rotary", "msf", "solina", "coregroup")):
         return "Partner"
     if "national" in c:
         return "National"
@@ -227,20 +238,21 @@ def load_form(row):
     out["form_name"] = row["name"]
     out["submission_time"] = parse_dates(d["_submission_time"], utc=True) if "_submission_time" in d.columns else pd.NaT
     out["_today"] = parse_dates(first_text(d, ["today"]))
-    out["_form_date"] = parse_dates(first_text(d, ["Date_of_Reporting_Updates"]))
+    out["_form_date"] = parse_dates(first_text(d, ["Date_of_Reporting_Updates", "DateMonitor"]))
     out["date_typed"] = out["_form_date"].fillna(out["_today"])
     out["response_reported"] = first_text(d, ["Response", "response_ID"]).str.replace(r"\s+", " ", regex=True).str.strip()
     out["round_raw"] = first_text(d, ["roundNumber", "Camp_Rnd"])
     out["region_raw"], out["district_raw"], out["facility_raw"] = first_text(d, GEO_REGION), first_text(d, GEO_DISTRICT), first_text(d, GEO_FACILITY)
     out["settlement"] = first_text(d, ["SettlementName"]).map(clean_name)
-    out["validate_loc"] = first_text(d, ["Validate_LOC"])
-    out["monitor_code"] = first_text(d, ["Monitored_Level"])
+    out["validate_loc"] = first_text(d, ["Validate_LOC", "supervlevel"])
+    out["monitor_code"] = first_text(d, ["Monitored_Level", "agency"])
     out["monitor_group"] = out["monitor_code"].map(designation)
-    gps = first_text(d, ["GIS_Location"]).str.extract(r"^\s*(-?\d+\.?\d*)\s+(-?\d+\.?\d*)")
+    gps = first_text(d, ["GIS_Location", "GPS"]).str.extract(r"^\s*(-?\d+\.?\d*)\s+(-?\d+\.?\d*)")
     out["latitude"], out["longitude"] = pd.to_numeric(gps[0], errors="coerce"), pd.to_numeric(gps[1], errors="coerce")
     out["days_supplies_before_campaign"] = first_number(d, ["Days2Campaign"])
-    out["comments"] = first_text(d, ["comments"])
-    out["min_date"] = pd.to_datetime(row.get("min_date") or "2019-01-01", errors="coerce")
+    out["comments"] = first_text(d, ["comments", "Comment"])
+    out["visit_timing"] = first_text(d, ["evaluation"]).map({"1": "3 weeks before", "2": "2 weeks before", "3": "1 week before", "4": "3 days before"}).fillna("")
+    out["min_date"] = pd.Timestamp("2015-01-01")          # earliest plausible date; older Nigeria visits (2017-2018) are real
     # the checklist: one standard column per question, Yes / No / NA / empty
     found = {}
     for c in d.columns:
@@ -250,6 +262,15 @@ def load_form(row):
             found[std] = a.where(a != "", found[std]) if std in found else a
     for q in ITEMS:
         out[q] = found.get(q, pd.Series("", index=d.index))
+    if row["iso3"] == "NGA":                      # items that exist only in the Nigeria checklist: kept, but not part of the cross-country readiness
+        ex = pd.DataFrame({"record_uuid": out["record_uuid"]})
+        for c in d.columns:
+            if c in SYNONYM or c in ITEM_SECTION or c.startswith("_"):
+                continue
+            a = answers(d, c)
+            if a.ne("").sum() > 0 and a[a != ""].isin([YES, NO, NA]).all():
+                ex["nga_" + c] = a
+        EXTRAS.append(ex)
     return out
 
 
@@ -341,20 +362,25 @@ def clean(df, lk):
         n = ready[cols].notna().sum(axis=1)
         df["ready_" + s] = (ready[cols].sum(axis=1) / n * 100).where(n > 0).round(1)
     flags["few_answers"] = df["items_answered"] < 10
-    flags["all_yes"] = (df["items_answered"] >= 20) & (df["readiness_pct"] == 100)
+    flags["all_yes"] = (df["items_answered"] >= 12) & (df["readiness_pct"] == 100)
     df["qc_flags"] = flags.apply(lambda r: ";".join(c for c in flags.columns if r[c]), axis=1)
     return df, flags, ready
 
 
 def dedupe(df):
-    k = (df["iso3"] + "|" + df["response"].map(key) + "|" + df["round"] + "|" + df["level"] + "|" + df["region"].map(key) + "|" + df["district"].map(key) + "|" +
-         df["facility"].map(key) + "|" + df["settlement"].map(key))
+    # a place is identified at its own level: an LGA / district visit is the same place whatever ward was picked in the form
+    lvl = df["level"]
+    reg, dis = df["region"].map(key), df["district"].map(key)
+    fac = (df["facility"].map(key) + "|" + df["settlement"].map(key)).where(lvl == "Facility", "")
+    dis = dis.where(lvl.isin(["District", "Facility"]), "")
+    reg = reg.where(lvl != "National", "")
+    k = df["iso3"] + "|" + df["response"].map(key) + "|" + df["round"] + "|" + lvl + "|" + reg + "|" + dis + "|" + fac
     ok = (df["response"] != "") & (df["round"] != "") & ~df["qc_flags"].str.contains("no_geography")
     k = k.where(ok, df["record_uuid"].astype(str))
     df = df.assign(_k=k).sort_values(["_k", "submission_time"])
     df["visits_of_this_place"] = df.groupby("_k")["_k"].transform("size")
     df["is_latest_of_place"] = ~df.duplicated("_k", keep="last")
-    sig = df["_k"] + "|" + df["report_date"].astype(str) + "|" + df["monitor_code"] + "|" + df["latitude"].astype(str) + "|" + df["longitude"].astype(str) + "|" + df[ITEMS].agg("|".join, axis=1)
+    sig = df["_k"] + "|" + df["facility"].map(key) + "|" + df["district"].map(key) + "|" + df["report_date"].astype(str) + "|" + df["monitor_code"] + "|" + df["latitude"].astype(str) + "|" + df["longitude"].astype(str) + "|" + df[ITEMS].agg("|".join, axis=1)
     dup = sig.duplicated(keep="last")
     removed = df[dup].copy()
     removed["kept_record_uuid"] = sig[dup].map(pd.Series(df.loc[~dup, "record_uuid"].values, index=sig[~dup].values))
@@ -363,7 +389,7 @@ def dedupe(df):
 
 REPO_COLS = (["record_uuid", "iso3", "country", "form_id", "language", "response", "response_reported", "round", "campaign_start", "campaign_source", "report_date",
               "date_typed", "report_year", "date_source", "submission_time", "level", "level_source", "region", "district", "facility", "settlement", "latitude", "longitude",
-              "monitor_group", "monitor_code", "days_supplies_before_campaign"] + ITEMS +
+              "monitor_group", "monitor_code", "visit_timing", "days_supplies_before_campaign"] + ITEMS +
              ["items_answered", "items_ready", "readiness_pct"] + ["ready_" + s for s in SECTIONS] +
              ["visits_of_this_place", "is_latest_of_place", "qc_flags", "comments"])
 
@@ -393,8 +419,8 @@ def dictionary(forms, n):
          "date_typed": "The date typed in the form as it was", "report_year": "Year of report_date", "date_source": "form or submission", "submission_time": "Time the submission reached ONA (UTC)",
          "level": "Level of the place assessed: National, Regional, District, Facility (from the form's validation level, else from the deepest place name filled)", "level_source": "form (the form asks which level is validated) or geography (deepest place name filled)", "region": "Region / province / state",
          "district": "District / county", "facility": "Health facility, health area, sub-district, ward", "settlement": "Settlement (some forms)", "latitude": "GPS latitude", "longitude": "GPS longitude",
-         "monitor_group": "Who made the visit: National, Regional, District, Sub-district / health area, Team supervisor, Partner (WHO, UNICEF, CDC ...), Other. Names of monitors are not kept",
-         "monitor_code": "Code of the designation as in the form", "days_supplies_before_campaign": "Days before the campaign the supplies arrived (some forms)",
+         "monitor_group": "Who made the visit: National, Regional, District, Sub-district / health area, Team supervisor, Government (Nigeria form), Partner (WHO, UNICEF, CDC ...), Other. Names of monitors are not kept",
+         "monitor_code": "Code of the designation as in the form", "days_supplies_before_campaign": "Days before the campaign the supplies arrived (some forms)", "visit_timing": "How long before the round the visit was made (Nigeria form: 3 weeks, 2 weeks, 1 week, 3 days)",
          "items_answered": "Number of questions answered Yes or No", "items_ready": "Of these, how many are 'ready' (Yes; for 'vials with VVM at discard point' it is No)", "readiness_pct": "items_ready / items_answered x 100",
          "visits_of_this_place": "How many visits the same place, campaign, round and level had", "is_latest_of_place": "True for the last visit of that place and round (the summary table uses these)",
          "qc_flags": "Semicolon list of checks that failed", "comments": "Free-text comment of the supervisor"}
@@ -422,7 +448,7 @@ def dictionary(forms, n):
         "date_from_submission": "The typed date is missing or impossible: submission date used", 
         "no_geography": "The level needs a place name that is empty", "round_not_a_round": "The round question holds something that is not a round number",
         "campaign_not_in_lookup": "A typed campaign name that is not in the lookup: kept as typed", "campaign_from_lookup_date": "The typed campaign was empty or not a campaign name: the next round of the country in the lookup",
-        "few_answers": "Fewer than 10 questions answered", "all_yes": "20 or more questions answered and all of them ready (to check)"}.items()])
+        "few_answers": "Fewer than 10 questions answered", "all_yes": "12 or more questions answered and all of them ready (to check)"}.items()])
     items = pd.DataFrame([{"Question": q, "Section": ITEM_SECTION[q], "Meaning": lab.get(q, q), "Yes means": "a problem" if q in NEGATIVE else "ready"} for q in ITEMS])
     rules = pd.DataFrame({"Rule": [
         "One record = one supervision visit of one place. Several visits of the same place are normal (before and during preparation): all are kept.",
@@ -430,7 +456,8 @@ def dictionary(forms, n):
         "is_latest_of_place marks the last visit of each place and round. The summary table uses these: readiness and % Yes per question over places, not over visits.",
         "The checklist is filled before the round: a missing campaign is the next round starting in the lookup (from 21 days before the visit to 120 days after).",
         "Readiness = share of 'ready' answers among Yes/No answers (NA and empty are ignored). 'Vials with VVM at discard point' is ready when the answer is No.",
-        "Names of monitors are not kept: only the group (monitor_group)."]})
+        "Names of monitors are not kept: only the group (monitor_group).",
+        "Nigeria uses its own checklist (IPDs_PreImplementation_Checklist, form 356, Y/N answers, State / LGA / Ward). The questions that are the same as the standard checklist are mapped to it; the other Nigeria questions are kept in afro_preparedness_nigeria_extra_items.csv (not in the cross-country readiness). The form has no campaign or round question: both come from the lookup and the visit date."]})
     with pd.ExcelWriter(META / "AFRO_preparedness_dictionary.xlsx", engine="openpyxl") as xw:
         cols.to_excel(xw, sheet_name="Columns", index=False)
         items.to_excel(xw, sheet_name="Checklist", index=False)
@@ -465,6 +492,11 @@ def main():
     out.to_csv(FINAL / "afro_preparedness_repository.csv", index=False, encoding="utf-8-sig")
     removed[["record_uuid", "kept_record_uuid", "iso3", "form_id", "response", "round", "level", "region", "district", "facility", "report_date", "submission_time"]].to_csv(
         FINAL / "afro_preparedness_repository_removed_duplicates.csv", index=False, encoding="utf-8-sig")
+    if EXTRAS:
+        ex = pd.concat(EXTRAS, ignore_index=True)
+        ex = ex[ex["record_uuid"].isin(df["record_uuid"])]
+        ex.to_csv(FINAL / "afro_preparedness_nigeria_extra_items.csv", index=False, encoding="utf-8-sig")
+        log(f"Nigeria-only items: {ex.shape[1] - 1} questions, {len(ex):,} visits -> afro_preparedness_nigeria_extra_items.csv")
     country = summaries(df)
     country.to_csv(FINAL / "afro_preparedness_country_round.csv", index=False, encoding="utf-8-sig")
     dictionary(forms, len(df))

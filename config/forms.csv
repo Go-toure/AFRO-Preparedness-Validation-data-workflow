@@ -39,3 +39,5 @@ form_id,country,iso3,name,variant,language,token_env,min_date,enabled,submission
 6770,Uganda,UGA,UGA SIA Preparedness Validation,validation,en,ONA_API_TOKEN,2019-01-01,TRUE,3233,2025-01-01,
 4356,Zambia,ZMB,ZAMBIA SIA Preparedness Checklist,checklist,en,ONA_API_TOKEN,2019-01-01,TRUE,36989,2026-10-29,
 7982,Zimbabwe,ZWE,ZIM Preparedness Validation,validation,en,ONA_API_TOKEN,2019-01-01,TRUE,21820,2026-10-04,
+356,Nigeria,NGA,IPDs_PreImplementation_Checklist,preimplementation,en,ONA_API_TOKEN_NIE,2019-01-01,TRUE,30384,2026-03-04,Nigeria pre-campaign readiness checklist (Y/N answers; State/LGA/Ward); own question names mapped in process_preparedness.py
+14738,Nigeria,NGA,IPDs Take Off Checklist,takeoff,en,ONA_API_TOKEN_NIE,2019-01-01,FALSE,265154,2026-11-19,not a preparedness checklist: day-of-campaign take-off supervision; belongs to the supervision pipeline
