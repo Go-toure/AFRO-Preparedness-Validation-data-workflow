@@ -9,10 +9,11 @@
 # Steps
 #   1 fetch     python fetch_ona_data.py        ONA download (token per row of config/forms.csv) + the form definitions
 #   2 inspect   python tools/inspect_forms.py   questions of every form, share filled, templates  -> reports/
-#   (3 process, 4 clean, 5 qc, 6 sharepoint: added once the schema report has been read)
+#   3 process   python process_preparedness.py  one table for all countries: standard questions, levels, rounds and campaigns (lookup), readiness scores, QC flags
+#   (4 sharepoint push: added once the outputs have been checked)
 #
 # Options
-#   --skip-fetch --skip-inspect
+#   --skip-fetch --skip-inspect --skip-process
 #   --countries AGO[,ETH,...]     only these ISO3 codes in the fetch step
 #   --allow-shrink                accept a download with >10% fewer records than before
 # ============================================================
@@ -26,7 +27,8 @@ if (!is.null(opt_value("--countries"))) fetch_args <- c(fetch_args, "--countries
 if (has("--allow-shrink")) fetch_args <- c(fetch_args, "--allow-shrink")
 steps <- list(
   list(name = "Fetch from ONA",     skip = has("--skip-fetch"),   cmd = py, args = fetch_args,                  hard_stop = FALSE),
-  list(name = "Inspect the forms",  skip = has("--skip-inspect"), cmd = py, args = c("tools/inspect_forms.py"), hard_stop = FALSE)
+  list(name = "Inspect the forms",  skip = has("--skip-inspect"), cmd = py, args = c("tools/inspect_forms.py"), hard_stop = FALSE),
+  list(name = "Process Preparedness", skip = has("--skip-process"), cmd = py, args = c("process_preparedness.py"), hard_stop = FALSE)
 )
 cat(strrep("=", 60), "\nSIA Preparedness Validation pipeline  --  ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n", strrep("=", 60), "\n", sep = "")
 outcome <- list()
